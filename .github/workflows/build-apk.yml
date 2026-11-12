@@ -39,16 +39,19 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      
       - name: Prepare signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eduspark-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/eduspark-release.jks" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/eduspark-release.jks"
+          echo "File size:"
+          wc -c "$RUNNER_TEMP/eduspark-release.jks"
+          echo "SHA256:"
+          sha256sum "$RUNNER_TEMP/eduspark-release.jks"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/eduspark-release.jks" >> $GITHUB_ENV
+
 
       - name: Build release APK
         run: |
