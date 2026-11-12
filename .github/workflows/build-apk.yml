@@ -42,8 +42,12 @@ jobs:
       - name: Prepare signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          set -euo pipefail
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eduspark-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/eduspark-release.jks" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/eduspark-release.jks" >> $GITHUB_ENV
 
       - name: Build release APK
@@ -57,6 +61,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+
           APK="extracted/EduSparkAndroid/app/build/outputs/apk/release/app-release-unsigned.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
@@ -64,6 +70,7 @@ jobs:
           "$ZIPALIGN" -p -f 4 "$APK" "$RUNNER_TEMP/eduspark-aligned.apk"
 
           "$APKSIGNER" sign \
+            --ks-type PKCS12 \
             --ks "$KEYSTORE_PATH" \
             --ks-key-alias "$KEY_ALIAS" \
             --ks-pass env:KEYSTORE_PASSWORD \
