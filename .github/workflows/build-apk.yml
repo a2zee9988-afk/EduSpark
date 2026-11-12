@@ -1,5 +1,5 @@
 
-name: Build EduSpark APK
+name: Build EduSpark Signed APK
 
 on:
   workflow_dispatch:
@@ -39,14 +39,42 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build Android APK
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/eduspark-release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/eduspark-release.jks" >> $GITHUB_ENV
+
+      - name: Build release APK
         run: |
           cd extracted/EduSparkAndroid
-          gradle --no-daemon assembleDebug
+          gradle --no-daemon assembleRelease
 
-      - name: Upload APK
+      - name: Sign release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          APK="extracted/EduSparkAndroid/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          "$ZIPALIGN" -p -f 4 "$APK" "$RUNNER_TEMP/eduspark-aligned.apk"
+
+          "$APKSIGNER" sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out "$RUNNER_TEMP/EduSpark-release.apk" \
+            "$RUNNER_TEMP/eduspark-aligned.apk"
+
+          "$APKSIGNER" verify "$RUNNER_TEMP/EduSpark-release.apk"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: EduSpark-APK
-          path: extracted/EduSparkAndroid/app/build/outputs/apk/debug/app-debug.apk
-
+          name: EduSpark-Signed-Release
+          path: ${{ runner.temp }}/EduSpark-release.apk
